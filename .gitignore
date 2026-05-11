@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.pytest_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+
+# External deps cloned by setup.sh
+scripts/BenDFO/
+scripts/COMMITS.txt
+
+# Generated outputs
+output/
+output_smoke/
+figures/
+figures_smoke/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

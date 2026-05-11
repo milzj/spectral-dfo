@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spectral-dfo"
+version = "0.1.0"
+description = "DFBD with spectral-design sampling and forward FD, compared to PDFO on the Moré–Wild smooth test set."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "spectral-dfo contributors" },
+]
+keywords = [
+    "derivative-free optimization",
+    "spectral design",
+    "DFO",
+    "noisy optimization",
+    "benchmark",
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pandas>=2.0",
+    "pdfo>=2.2,<3",
+    "spectraldesign @ git+https://github.com/milzj/spectraldesign.git@main",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-xdist>=3",
+    "ruff>=0.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/milzj/spectral-dfo"
+"Bug Tracker" = "https://github.com/milzj/spectral-dfo/issues"
+
+[tool.hatch.metadata]
+# Required so `spectraldesign @ git+https://...` is allowed in [project.dependencies].
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spectral_dfo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
