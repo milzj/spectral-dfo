@@ -37,17 +37,16 @@ METHOD_LABELS = {
 
 
 def _run_one_dfbd(p, est_fn, *, max_evals, sigma, seed, L0, eta, reuse_radius, q_max):
-    rng = np.random.default_rng(seed)
     res = run_dfbd(p.f, p.x0, est_fn,
                    xi_f=sigma, max_evals=max_evals, L0=L0, eta=eta,
                    noise_sigma=sigma, reuse_radius=reuse_radius, q_max=q_max,
-                   rng=rng)
+                   seed=seed)
     return trajectory_array(res, max_evals)
 
 
 def _run_one_pdfo(p, *, max_evals, sigma, seed):
-    rng = np.random.default_rng(seed)
-    return run_pdfo(p.f, p.x0, max_evals=max_evals, noise_sigma=sigma, rng=rng)
+    oracle = run_pdfo(p.f, p.x0, max_evals=max_evals, noise_sigma=sigma, seed=seed)
+    return trajectory_array(oracle, max_evals)
 
 
 def main():
