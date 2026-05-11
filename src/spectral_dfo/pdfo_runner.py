@@ -33,7 +33,9 @@ def run_pdfo(
     if oracle is None:
         if rng is None:
             rng = np.random.default_rng(seed)
-        oracle = NoisyOracle(f, noise_sigma=noise_sigma, rng=rng)
+        # PDFO never consumes the cache, so skip the per-evaluation
+        # (x.copy(), v_noisy) append.  Saves ~tens of seconds across 10M+ evals.
+        oracle = NoisyOracle(f, noise_sigma=noise_sigma, rng=rng, track_cache=False)
 
     x0 = np.asarray(x0, dtype=float).copy()
     with warnings.catch_warnings():

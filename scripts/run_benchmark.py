@@ -4,6 +4,7 @@ Moré–Wild test set with layered Gaussian noise.
 Writes long-format CSV(s) to `output/`:
   - trajectories.csv : (method, problem, n, sigma, seed, eval_index, best_true_f)
   - summary.csv      : (method, problem, n, sigma, tau, evals_to_target)
+  - timing.csv       : (sigma, elapsed_seconds)  and a total-runtime row
 
 Both are sufficient to recompute every figure in this benchmark.
 """
@@ -90,8 +91,12 @@ def main():
     print(f"[bench] writing  trajectories -> {traj_path}")
     print(f"[bench] writing  summary      -> {summary_path}")
 
-    # Write trajectories.csv incrementally — useful if a long run is interrupted.
-    traj_f = open(traj_path, "w", newline="")
+    # Write trajectories to a process-private tempfile so two concurrently
+    # running run_benchmark.py instances cannot byte-interleave into the same
+    # CSV.  We rename to the canonical name at the end.
+    pid = os.getpid()
+    traj_tmp = traj_path + f".pid{pid}.tmp"
+    traj_f = open(traj_tmp, "w", newline="")
     traj_w = csv.writer(traj_f)
     traj_w.writerow(["method", "problem", "n", "sigma", "seed",
                      "eval_index", "best_true_f"])
@@ -177,6 +182,8 @@ def main():
         print(f"[bench]    done in {time.time() - t0:.1f}s")
 
     traj_f.close()
+    # Atomic rename of the per-process tempfile to the canonical path.
+    os.replace(traj_tmp, traj_path)
 
     with open(summary_path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(summary_rows[0].keys()))

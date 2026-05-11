@@ -40,6 +40,7 @@ class NoisyOracle:
         noise_sigma: float = 0.0,
         rng: np.random.Generator | None = None,
         seed: int = 0,
+        track_cache: bool = True,
     ):
         self._f = f
         self._noise_sigma = float(noise_sigma)
@@ -47,6 +48,11 @@ class NoisyOracle:
             self._rng = np.random.default_rng(seed)
         else:
             self._rng = rng
+        # `track_cache=False` (used by PDFO) skips the per-evaluation
+        # `(x.copy(), v_noisy)` append -- PDFO does not consume the cache, so
+        # there's no reason to pay for it.  The spectral-design path keeps
+        # `track_cache=True` because spectral_gradient reads `oracle.cache`.
+        self._track_cache = bool(track_cache)
         self._cache: list[tuple[np.ndarray, float]] = []
         self._trajectory: list[tuple[int, float]] = []
         self._n_evals = 0
@@ -63,7 +69,8 @@ class NoisyOracle:
             v_true + float(self._rng.normal(0.0, self._noise_sigma))
             if self._noise_sigma > 0 else v_true
         )
-        self._cache.append((x_arr.copy(), v_noisy))
+        if self._track_cache:
+            self._cache.append((x_arr.copy(), v_noisy))
         self._n_evals += 1
         if v_true < self._best_f:
             self._best_f = v_true
