@@ -28,6 +28,7 @@ from spectral_dfo import (    # noqa: E402
     run_pdfo, load_problems, trajectory_array,
     data_profile, perf_profile, evals_to_reach,
 )
+from spectral_dfo.pdfo_runner import pdfo_short_status   # noqa: E402
 
 
 METHOD_LABELS = {
@@ -57,15 +58,16 @@ def _run_one_pdfo(p, *, max_evals, sigma, seed):
     t0 = time.perf_counter()
     oracle = run_pdfo(p.f, p.x0, max_evals=max_evals, noise_sigma=sigma, seed=seed)
     elapsed = time.perf_counter() - t0
-    # PDFO doesn't expose a status string; we infer:
-    #   max_evals  -> budget exhausted
-    #   early      -> PDFO converged (rhoend) or crashed (we catch in pdfo_runner)
-    status = "max_evals" if oracle.n_evals >= max_evals else "early"
+    # PDFO's actual termination reason — one of {"rhoend", "ftarget",
+    # "npt_bad", "maxfev", "crash", ...} — extracted from the OptimizeResult.
+    status = pdfo_short_status(oracle)
     info = {
-        "n_evals":  oracle.n_evals,
-        "best_f":   oracle.best_f,
-        "status":   status,
-        "elapsed":  elapsed,
+        "n_evals":     oracle.n_evals,
+        "best_f":      oracle.best_f,
+        "status":      status,
+        "pdfo_status": oracle.pdfo_status,
+        "pdfo_message": oracle.pdfo_message,
+        "elapsed":     elapsed,
     }
     return trajectory_array(oracle, max_evals), info
 
