@@ -17,6 +17,7 @@ if SRC not in sys.path:
 from spectral_dfo import (    # noqa: E402
     data_profile, perf_profile,
     plot_data_profile, plot_perf_profile,
+    list_problem_dims,
 )
 
 
@@ -54,6 +55,20 @@ def _reconstruct_mean_trajs(df: pd.DataFrame) -> dict[float, dict[str, dict[str,
             w = g.pivot_table(index="eval_index", columns="seed",
                               values="best_true_f", aggfunc="first").sort_index()
             mean = np.array(w.mean(axis=1).to_numpy(), dtype=float, copy=True)
+            # If some seeds crashed early, the tail of `mean` is NaN.  Forward-
+            # fill from the last finite value so the trajectory plateaus at the
+            # best-so-far seen by the seeds that did run; this avoids letting a
+            # partial-data trajectory disappear in the "all-inf" branch below.
+            finite_mask = np.isfinite(mean)
+            if finite_mask.any():
+                last_finite = int(len(mean) - 1 - np.argmax(finite_mask[::-1]))
+                first_finite = int(np.argmax(finite_mask))
+                if first_finite > 0:
+                    mean[:first_finite] = mean[first_finite]
+                if last_finite < len(mean) - 1:
+                    mean[last_finite + 1:] = mean[last_finite]
+            else:
+                mean[:] = np.inf
             np.minimum.accumulate(mean, out=mean)
             per_sigma[method][problem] = mean
         # Fill in any (method, problem) pair that produced *no* rows.
@@ -105,10 +120,13 @@ def main():
         print(f"[plot] dropped {n_rows_in - n_rows_out:,} of {n_rows_in:,} rows "
               f"(corrupted / garbage entries).")
 
-    # Per-problem dimension n and f0:
-    problem_dims = (
-        df.groupby("problem")["n"].first().to_dict()
-    )
+    # The canonical 53-problem Moré-Wild smooth set is the *denominator* for
+    # all profiles.  Problems missing from the CSV (e.g. because a benchmark
+    # was killed mid-run) are counted as "unsolved by every method" -- never
+    # silently dropped, which would inflate the solve rates.
+    canonical_dims: dict[str, int] = list_problem_dims()
+    canonical_problems: list[str] = sorted(canonical_dims.keys())
+
     # f0 = best_true_f at eval_index=1 (any method, any seed — they all start at x0).
     f0_lookup = df[df.eval_index == 1].groupby("problem")["best_true_f"].first().to_dict()
 
@@ -116,25 +134,46 @@ def main():
     method_order = ["dfbd_spectral", "dfbd_fd", "pdfo"]
 
     for sigma, trajs in mean_trajs_by_sigma.items():
-        # After `_reconstruct_mean_trajs`, every method has an entry for every
-        # problem that appeared in this sigma (missing ones were filled with
-        # +inf trajectories), so we can take the union and look everything up
-        # without KeyError risk.  We exclude problems where *all* methods
-        # were filled with inf -- those carry no information.
-        problems_here = sorted(set(p for m in trajs.values() for p in m))
-        problems_here = [
-            p for p in problems_here
-            if any(np.isfinite(trajs[m][p][-1]) for m in trajs)
-        ]
+        # The denominator is always the canonical 53 Moré-Wild problems.
+        # Problems not present in `trajs` (no method ran them) get
+        # +inf trajectories so every method is correctly recorded as unsolved.
+        max_evals_in_csv = max(
+            (len(trajs[m][p]) for m in trajs for p in trajs[m]),
+            default=1,
+        )
+        problems_here = canonical_problems
+        n_filled = 0
+        for p in problems_here:
+            for m in trajs:
+                if p not in trajs[m]:
+                    trajs[m][p] = np.full(max_evals_in_csv, np.inf)
+                    n_filled += 1
+        if n_filled:
+            print(f"[plot] sigma={float(sigma):g}: filled {n_filled} "
+                  f"(method, problem) cells absent from CSV with +inf.")
+
+        n_unsolved_by_all = 0
         fL = {}
         for p in problems_here:
             finite_finals = [
                 float(trajs[m][p][-1]) for m in trajs
                 if np.isfinite(trajs[m][p][-1])
             ]
-            fL[p] = float(min(finite_finals))
-        f0 = {p: f0_lookup[p] for p in problems_here}
-        dims = {p: int(problem_dims[p]) for p in problems_here}
+            if finite_finals:
+                fL[p] = float(min(finite_finals))
+            else:
+                # No method has data for p.  Set fL = f0 -> target = f0;
+                # all-inf trajectories never reach a finite target, so every
+                # method is recorded as unsolved.  Problem still counted in
+                # the denominator.
+                fL[p] = float(f0_lookup.get(p, 0.0))
+                n_unsolved_by_all += 1
+        f0 = {p: float(f0_lookup.get(p, 0.0)) for p in problems_here}
+        dims = {p: int(canonical_dims[p]) for p in problems_here}
+        if n_unsolved_by_all:
+            print(f"[plot] sigma={float(sigma):g}: {n_unsolved_by_all} of "
+                  f"{len(problems_here)} problems have no method data "
+                  f"(counted as unsolved by everyone).")
 
         sub = os.path.join(args.fig_dir, _sigma_dir(sigma))
         os.makedirs(sub, exist_ok=True)

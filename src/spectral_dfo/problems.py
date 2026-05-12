@@ -49,6 +49,21 @@ DFO_DAT: list[tuple[int, int, int, int]] = [
 ]
 
 
+def list_problem_names() -> list[str]:
+    """Return the 53 canonical Moré–Wild instance names without importing BenDFO.
+
+    Used by the plotter as the authoritative denominator for data and
+    performance profiles — problems missing from a benchmark's CSV are still
+    counted as "unsolved by every method", never silently dropped.
+    """
+    return [f"MW{nprob:02d}_n{n}_f{kind}" for (nprob, n, m, kind) in DFO_DAT]
+
+
+def list_problem_dims() -> dict[str, int]:
+    """Return `{problem_name: n}` for the 53 canonical Moré–Wild instances."""
+    return {f"MW{nprob:02d}_n{n}_f{kind}": n for (nprob, n, m, kind) in DFO_DAT}
+
+
 @dataclass
 class MoreWildProblem:
     """One row of the Moré–Wild table, with a callable `f(x) -> float` that

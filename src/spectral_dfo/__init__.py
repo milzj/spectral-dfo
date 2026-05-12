@@ -16,7 +16,7 @@ Public API:
 from .oracle import NoisyOracle
 from .dfbd import run_dfbd, fd_gradient, spectral_gradient, trajectory_array, DFBDResult
 from .pdfo_runner import run_pdfo
-from .problems import load_problems, MoreWildProblem
+from .problems import load_problems, MoreWildProblem, list_problem_names, list_problem_dims
 from .profiles import data_profile, perf_profile, evals_to_reach
 from .plotting import plot_data_profile, plot_perf_profile
 
@@ -24,7 +24,7 @@ __all__ = [
     "NoisyOracle",
     "run_dfbd", "fd_gradient", "spectral_gradient", "trajectory_array", "DFBDResult",
     "run_pdfo",
-    "load_problems", "MoreWildProblem",
+    "load_problems", "MoreWildProblem", "list_problem_names", "list_problem_dims",
     "data_profile", "perf_profile", "evals_to_reach",
     "plot_data_profile", "plot_perf_profile",
 ]
