@@ -12,6 +12,20 @@ def test_evals_to_reach():
     assert evals_to_reach(traj, 0.5) is None
 
 
+def test_evals_to_reach_inf_target_returns_none():
+    """If f(x_0) overflowed (target ends up at +inf), the convergence test is
+    ill-defined and the method must NOT be silently credited as 'solved at iter
+    1' just because `inf <= inf` is True in IEEE arithmetic.
+    """
+    traj = np.full(100, np.inf)
+    assert evals_to_reach(traj, np.inf) is None
+    assert evals_to_reach(traj, np.nan) is None
+    # A finite trajectory with an inf target is still ill-defined.
+    finite_traj = np.linspace(10.0, 0.0, 100)
+    assert evals_to_reach(finite_traj, np.inf) is None
+    assert evals_to_reach(finite_traj, np.nan) is None
+
+
 def _two_method_setup():
     """One method strictly dominates; profiles should reflect this."""
     T = 60

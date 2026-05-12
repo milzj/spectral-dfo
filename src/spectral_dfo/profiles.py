@@ -13,7 +13,16 @@ from typing import Mapping, Sequence
 
 def evals_to_reach(traj: np.ndarray, target: float) -> int | None:
     """Return the smallest 1-indexed evaluation count `t` with `traj[t-1] <= target`,
-    or `None` if never reached."""
+    or `None` if never reached.
+
+    If `target` is not finite (inf or NaN), the convergence test is ill-defined
+    and we return `None` -- this guards against the IEEE quirk that
+    `inf <= inf` is True, which would otherwise mark an all-inf trajectory
+    "solved" on overflow-prone problems where `f(x_0)` already returned `inf`
+    (e.g. some Moré–Wild perturbed starts like Mancino, Watson, Osborne 2).
+    """
+    if not np.isfinite(target):
+        return None
     mask = traj <= target
     if not np.any(mask):
         return None
