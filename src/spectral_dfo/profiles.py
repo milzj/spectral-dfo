@@ -35,7 +35,7 @@ def data_profile(
     f0: Mapping[str, float],
     fL: Mapping[str, float],
     tau: float,
-    kappa_max: float = 200.0,
+    kappa_max: float = 100.0,
     n_kappa: int = 400,
 ) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     """Moré–Wild data profile.

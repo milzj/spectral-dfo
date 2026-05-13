@@ -1,7 +1,7 @@
 """
 Algorithm 4 (DFBD for noisy functions) from Khanh-Mordukhovich-Tran (2024),
 "Globally Convergent Derivative-Free Methods in Nonconvex Optimization
-with and without Noise".
+with and without Noise". https://doi.org/10.1007/s10107-025-02255-8
 
 The framework is gradient-estimator-agnostic.  We provide two:
 
@@ -13,12 +13,13 @@ All noise injection, caching, and trajectory tracking lives in
 `NoisyOracle` (`oracle.py`); the driver and gradient estimators only call
 `oracle(x)` and read `oracle.cache`.
 """
+
 from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Callable
 
-from spectraldesign import compute_spectral_design
+from spectraldesign import compute_spectral_design_auto
 
 from .oracle import NoisyOracle
 
@@ -49,7 +50,17 @@ class DFBDResult:
 
 # ----------------------------- Gradient estimators -----------------------------
 
-def fd_gradient(x, phi_x, delta, oracle, n, *, reuse_radius=None, q_max=None):
+def fd_gradient(
+    x,
+    phi_x,
+    delta,
+    oracle,
+    n,
+    *,
+    reuse_radius=None,
+    q_max=None,
+    reuse_min_evals=None,
+):
     """Forward FD:  G̃(x, δ)_i = (φ(x + δ e_i) − φ(x)) / δ.  Ignores oracle.cache."""
     g = np.zeros(n)
     for i in range(n):
@@ -60,28 +71,9 @@ def fd_gradient(x, phi_x, delta, oracle, n, *, reuse_radius=None, q_max=None):
     return g
 
 
-def _call_spectraldesign(A, k):
-    """Call the spectraldesign package; on its `RuntimeError` fall back."""
-    try:
-        res = compute_spectral_design(A, k)
-        return np.asarray(res.X if hasattr(res, "X") else res)
-    except RuntimeError:
-        return _fallback_design(A, k)
-
-
-def _fallback_design(A, k):
-    """Tight-frame fallback (unit-norm columns in the eigenbasis of A) for the
-    rare cases where spectraldesign's Schur-Horn equalization hits its tolerance."""
-    d = A.shape[0]
-    _, V = np.linalg.eigh(A)
-    X_eig = np.zeros((d, k), dtype=float)
-    for i in range(k):
-        X_eig[i % d, i] = 1.0
-    return V @ X_eig
-
 
 def spectral_gradient(x, phi_x, delta, oracle, n,
-                      *, reuse_radius=2.0, q_max=25):
+                      *, reuse_radius=100, q_max=np.inf, reuse_min_evals=None):
     """Spectral-design + reuse + LS regression.
 
     Reads `oracle.cache` for the prior A = U Uᵀ, calls
@@ -89,12 +81,19 @@ def spectral_gradient(x, phi_x, delta, oracle, n,
     then evaluates `φ` at `x + δ x_i` via `oracle(...)` and solves the
     linear-interpolation LS problem (δ · M) · grad = rhs.
     """
+    # Delay reuse until the run has accumulated enough evaluations; this makes
+    # early iterations rely on fresh local probes, then progressively enables
+    # cache reuse once the point cloud is richer.
+    warmup_evals = (n + 1) if reuse_min_evals is None else int(reuse_min_evals)
+    allow_reuse = oracle.n_evals >= warmup_evals
+
     R = reuse_radius * delta
     reusable: list[tuple[np.ndarray, float, float]] = []
-    for (pt, val) in oracle.cache:
-        d = float(np.linalg.norm(pt - x))
-        if 1e-12 < d <= R:
-            reusable.append((pt, val, d))
+    if allow_reuse:
+        for (pt, val) in oracle.cache:
+            d = float(np.linalg.norm(pt - x))
+            if 1e-6 < d <= R:
+                reusable.append((pt, val, d))
     if len(reusable) > q_max:
         reusable.sort(key=lambda t: t[2])
         reusable = reusable[:q_max]
@@ -102,33 +101,33 @@ def spectral_gradient(x, phi_x, delta, oracle, n,
     if reusable:
         U = np.column_stack([(pt - x) / delta for pt, _, _ in reusable])
         U_resid = np.array([val - phi_x for _, val, _ in reusable])
-        A = U @ U.T
-    else:
-        U = np.zeros((n, 0))
-        U_resid = np.zeros(0)
-        A = np.zeros((n, n))
 
-    k = n
-    X = _call_spectraldesign(A, k)
+    # Spectral design
+    if reusable:
+        k = max(1, n // 2, n - np.linalg.matrix_rank(U))  # at least 1 direction, even if U is full-rank
+        res = compute_spectral_design_auto(X0=U, k=k)
+    else:
+        k = n
+        res = compute_spectral_design_auto(k=k, d=n)
+
+    X = res.X
 
     X_resid = np.zeros(k)
     for i in range(k):
         xi = X[:, i]
-        ni = float(np.linalg.norm(xi))
-        if ni > 1.0:
-            xi = xi / ni
         x_plus = x + delta * xi
         phi_plus = oracle(x_plus)
         X_resid[i] = phi_plus - phi_x
 
-    M = np.vstack([U.T, X[:, :k].T])
-    rhs = np.concatenate([U_resid, X_resid])
-    if M.shape[0] < n:
-        return np.zeros(n)
-    try:
-        g, *_ = np.linalg.lstsq(delta * M, rhs, rcond=None)
-    except np.linalg.LinAlgError:
-        g = np.zeros(n)
+    # least squares 
+    if reusable:
+        M = np.vstack([U.T, X[:, :k].T])
+        rhs = np.concatenate([U_resid, X_resid])
+    else:
+        M = X[:, :k].T
+        rhs = X_resid
+    g, *_ = np.linalg.lstsq(delta * M, rhs, rcond=None)
+
     return g
 
 
@@ -165,6 +164,7 @@ def run_dfbd(
     seed: int = 0,
     reuse_radius: float = 2.0,
     q_max: int = 25,
+    reuse_min_evals: int | None = None,
     oracle: NoisyOracle | None = None,
 ) -> DFBDResult:
     """Run Algorithm 4 of Khanh-Mordukhovich-Tran (2024).
@@ -186,7 +186,11 @@ def run_dfbd(
     if oracle is None:
         if rng is None:
             rng = np.random.default_rng(seed)
-        oracle = NoisyOracle(f, noise_sigma=noise_sigma, rng=rng)
+        oracle = NoisyOracle(
+            f,
+            noise_sigma=noise_sigma,
+            rng=rng,
+        )
 
     n = len(x0)
     x = np.asarray(x0, dtype=float).copy()
@@ -194,6 +198,8 @@ def run_dfbd(
     L_history: list[float] = []
 
     phi_x = oracle(x)
+    if not np.isfinite(phi_x):
+        return DFBDResult(oracle=oracle, status="nonfinite_x0", L_history=L_history)
 
     while oracle.n_evals < max_evals:
         success = False
@@ -203,7 +209,8 @@ def run_dfbd(
             L_trial = (eta ** i) * L
             if L_trial <= 0 or not np.isfinite(L_trial):
                 continue
-            delta = float(np.sqrt(4.0 * xi_f / L_trial)) if xi_f > 0 else 0.0
+            xi_eff = max(float(xi_f), float(np.sqrt(np.finfo(float).eps)))
+            delta = float(np.sqrt(4.0 * xi_eff / L_trial))
             if delta <= 0 or not np.isfinite(delta):
                 continue
             tau = 1.0 / L_trial
@@ -211,13 +218,17 @@ def run_dfbd(
             g = gradient_estimator(
                 x, phi_x, delta, oracle, n,
                 reuse_radius=reuse_radius, q_max=q_max,
+                reuse_min_evals=reuse_min_evals,
             )
             if oracle.n_evals >= max_evals:
                 break
 
             x_trial = x - tau * g
             phi_trial = oracle(x_trial)
-            rhs = phi_x - tau * float(g @ g) / 9.0
+            if not np.isfinite(phi_trial):
+                # Non-finite trial value: step size is too large; try a bigger L.
+                continue
+            rhs = phi_x - (tau/9.0) * g @ g 
             if phi_trial <= rhs:
                 x = x_trial
                 phi_x = phi_trial

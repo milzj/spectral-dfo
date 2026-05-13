@@ -31,57 +31,58 @@ def _tau_str(tau):
     return f"1e{e:d}"
 
 
-def _reconstruct_mean_trajs(df: pd.DataFrame) -> dict[float, dict[str, dict[str, np.ndarray]]]:
-    """Group trajectories.csv by sigma, then average over seeds, return
-    `{sigma: {method: {problem: best-so-far (max_evals,)}}}`.
+def _reconstruct_per_seed_trajs(df: pd.DataFrame) -> dict[float, dict[str, dict[str, np.ndarray]]]:
+    """Group trajectories.csv by sigma, keep each (problem, seed) as a separate
+    instance keyed as `problem__s{seed}`, return
+    `{sigma: {method: {problem__s{seed}: best-so-far (max_evals,)}}}`.
 
-    If a (method, problem) pair is missing entirely from the CSV (algorithm
-    crashed, ran zero evaluations, etc.) the entry is filled with `+inf`
-    over the problem's full evaluation budget so the data / performance
-    profiles count it as "never solved" rather than crashing.
+    If a (method, problem, seed) triple is missing entirely from the CSV the
+    entry is filled with `+inf` so it is counted as "never solved".
     """
     out: dict[float, dict[str, dict[str, np.ndarray]]] = {}
-    # Per-problem evaluation budget, taken from the longest trajectory seen.
     budget_per_problem = (
         df.groupby("problem")["eval_index"].max().to_dict()
     )
     for sigma, grp in df.groupby("sigma"):
         per_sigma: dict[str, dict[str, np.ndarray]] = {}
         methods = sorted(grp["method"].unique())
+        seeds_in_sigma = sorted(grp["seed"].unique())
         problems_in_sigma = sorted(grp["problem"].unique())
         for method in methods:
             per_sigma[method] = {}
-        for (method, problem), g in grp.groupby(["method", "problem"]):
-            w = g.pivot_table(index="eval_index", columns="seed",
-                              values="best_true_f", aggfunc="first").sort_index()
-            mean = np.array(w.mean(axis=1).to_numpy(), dtype=float, copy=True)
-            # If some seeds crashed early, the tail of `mean` is NaN.  Forward-
-            # fill from the last finite value so the trajectory plateaus at the
-            # best-so-far seen by the seeds that did run; this avoids letting a
-            # partial-data trajectory disappear in the "all-inf" branch below.
-            finite_mask = np.isfinite(mean)
+        for (method, problem, seed), g in grp.groupby(["method", "problem", "seed"]):
+            p_key = f"{problem}__s{seed}"
+            budget = int(budget_per_problem[problem])
+            traj = np.full(budget, np.inf)
+            idx = g["eval_index"].to_numpy() - 1
+            vals = g["best_true_f"].to_numpy(dtype=float)
+            valid = (idx >= 0) & (idx < budget)
+            traj[idx[valid]] = vals[valid]
+            finite_mask = np.isfinite(traj)
             if finite_mask.any():
-                last_finite = int(len(mean) - 1 - np.argmax(finite_mask[::-1]))
                 first_finite = int(np.argmax(finite_mask))
+                last_finite = int(len(traj) - 1 - np.argmax(finite_mask[::-1]))
                 if first_finite > 0:
-                    mean[:first_finite] = mean[first_finite]
-                if last_finite < len(mean) - 1:
-                    mean[last_finite + 1:] = mean[last_finite]
+                    traj[:first_finite] = traj[first_finite]
+                if last_finite < len(traj) - 1:
+                    traj[last_finite + 1:] = traj[last_finite]
             else:
-                mean[:] = np.inf
-            np.minimum.accumulate(mean, out=mean)
-            per_sigma[method][problem] = mean
-        # Fill in any (method, problem) pair that produced *no* rows.
+                traj[:] = np.inf
+            np.minimum.accumulate(traj, out=traj)
+            per_sigma[method][p_key] = traj
+        # Fill in any (method, problem, seed) triple that produced no rows.
         missing: list[tuple[str, str]] = []
         for method in methods:
             for problem in problems_in_sigma:
-                if problem not in per_sigma[method]:
-                    budget = int(budget_per_problem[problem])
-                    per_sigma[method][problem] = np.full(budget, np.inf)
-                    missing.append((method, problem))
+                for seed in seeds_in_sigma:
+                    p_key = f"{problem}__s{seed}"
+                    if p_key not in per_sigma[method]:
+                        budget = int(budget_per_problem[problem])
+                        per_sigma[method][p_key] = np.full(budget, np.inf)
+                        missing.append((method, p_key))
         if missing:
             print(f"[plot] sigma={float(sigma):g}: filled {len(missing)} missing "
-                  f"(method, problem) cells with +inf (never solved). "
+                  f"(method, problem, seed) cells with +inf (never solved). "
                   f"e.g. {missing[:5]}")
         out[float(sigma)] = per_sigma
     return out
@@ -124,13 +125,26 @@ def main():
     # all profiles.  Problems missing from the CSV (e.g. because a benchmark
     # was killed mid-run) are counted as "unsolved by every method" -- never
     # silently dropped, which would inflate the solve rates.
-    canonical_dims: dict[str, int] = list_problem_dims()
+    canonical_dims_by_problem: dict[str, int] = list_problem_dims()
+    all_seeds = sorted(df["seed"].unique())
+    # Expand canonical dims to one entry per (problem, seed) instance.
+    canonical_dims: dict[str, int] = {
+        f"{p}__s{seed}": n
+        for p, n in canonical_dims_by_problem.items()
+        for seed in all_seeds
+    }
     canonical_problems: list[str] = sorted(canonical_dims.keys())
 
-    # f0 = best_true_f at eval_index=1 (any method, any seed — they all start at x0).
-    f0_lookup = df[df.eval_index == 1].groupby("problem")["best_true_f"].first().to_dict()
+    # f0 = best_true_f at eval_index=1.  f is deterministic so f(x0) is the
+    # same for every seed; replicate it across all (problem, seed) keys.
+    f0_by_problem = df[df.eval_index == 1].groupby("problem")["best_true_f"].first().to_dict()
+    f0_lookup = {
+        f"{p}__s{seed}": f0_by_problem[p]
+        for p in f0_by_problem
+        for seed in all_seeds
+    }
 
-    mean_trajs_by_sigma = _reconstruct_mean_trajs(df)
+    mean_trajs_by_sigma = _reconstruct_per_seed_trajs(df)
     method_order = ["dfbd_spectral", "dfbd_fd", "pdfo"]
 
     for sigma, trajs in mean_trajs_by_sigma.items():

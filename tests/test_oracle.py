@@ -85,3 +85,22 @@ def test_trajectory_array_padding():
     assert a[-1] == 1.0
     # monotone
     assert (np.diff(a) <= 0).all()
+
+
+def test_exact_cache_lookup_reuses_existing_value_without_new_eval():
+    calls = {"count": 0}
+
+    def f(x):
+        calls["count"] += 1
+        return float(np.dot(x, x))
+
+    x = np.array([1.0, -2.0])
+    o = NoisyOracle(f, noise_sigma=1.0, seed=0, exact_cache_lookup=True)
+
+    v1 = o(x)
+    v2 = o(x.copy())
+
+    assert v1 == v2
+    assert calls["count"] == 1
+    assert o.n_evals == 1
+    assert len(o.trajectory) == 1

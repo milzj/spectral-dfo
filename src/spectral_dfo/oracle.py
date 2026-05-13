@@ -10,6 +10,7 @@ All algorithms in this package (`run_dfbd`, `run_pdfo`) call the same oracle;
 none of them roll their own noise.
 """
 from __future__ import annotations
+import sys
 import numpy as np
 from typing import Callable
 
@@ -41,6 +42,7 @@ class NoisyOracle:
         rng: np.random.Generator | None = None,
         seed: int = 0,
         track_cache: bool = True,
+        exact_cache_lookup: bool = False,
     ):
         self._f = f
         self._noise_sigma = float(noise_sigma)
@@ -53,7 +55,9 @@ class NoisyOracle:
         # there's no reason to pay for it.  The spectral-design path keeps
         # `track_cache=True` because spectral_gradient reads `oracle.cache`.
         self._track_cache = bool(track_cache)
+        self._exact_cache_lookup = bool(exact_cache_lookup)
         self._cache: list[tuple[np.ndarray, float]] = []
+        self._exact_cache: dict[bytes, tuple[float, float]] = {}
         self._trajectory: list[tuple[int, float]] = []
         self._n_evals = 0
         self._best_f: float = float("inf")
@@ -64,13 +68,29 @@ class NoisyOracle:
     def __call__(self, x) -> float:
         """Evaluate at `x`. Returns the *noisy* value (the algorithm only sees noise)."""
         x_arr = np.asarray(x, dtype=float).reshape(-1)
+        x_key = x_arr.tobytes()
+        if self._exact_cache_lookup and x_key in self._exact_cache:
+            return self._exact_cache[x_key][1]
+
         v_true = float(self._f(x_arr))
         v_noisy = (
             v_true + float(self._rng.normal(0.0, self._noise_sigma))
             if self._noise_sigma > 0 else v_true
         )
+        if not np.isfinite(v_true) or not np.isfinite(v_noisy):
+            v_true_kind = "nan" if np.isnan(v_true) else ("inf" if np.isinf(v_true) else "finite")
+            v_noisy_kind = "nan" if np.isnan(v_noisy) else ("inf" if np.isinf(v_noisy) else "finite")
+            next_eval = self._n_evals + 1
+            print(
+                f"[oracle] non-finite evaluation at eval={next_eval}: "
+                f"true={v_true} ({v_true_kind}), noisy={v_noisy} ({v_noisy_kind}), "
+                f"||x||={float(np.linalg.norm(x_arr)):.3e}",
+                file=sys.stderr,
+            )
         if self._track_cache:
             self._cache.append((x_arr.copy(), v_noisy))
+        if self._exact_cache_lookup:
+            self._exact_cache[x_key] = (v_true, v_noisy)
         self._n_evals += 1
         if v_true < self._best_f:
             self._best_f = v_true

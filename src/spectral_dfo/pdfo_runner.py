@@ -40,7 +40,6 @@ def run_pdfo(
     rng: np.random.Generator | None = None,
     seed: int = 0,
     method: str = "bobyqa",
-    rhobeg: float = 0.5,
     rhoend: float = 1e-32,
     oracle: NoisyOracle | None = None,
 ) -> NoisyOracle:
@@ -69,7 +68,6 @@ def run_pdfo(
                 method=method,
                 options={
                     "maxfev": int(max_evals),
-                    "rhobeg": float(rhobeg),
                     "rhoend": float(rhoend),
                     "ftarget": -np.inf,
                     "quiet": True,

@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 
 METHOD_STYLES = {
     "dfbd_spectral": ("-",  "#1f77b4", "DFBD + spectral design"),
-    "dfbd_fd":       ("--", "#d62728", "DFBD + forward FD"),
-    "pdfo":          (":",  "#2ca02c", "PDFO (BOBYQA)"),
+    "dfbd_fd":       ("--", "#ff7f0e", "DFBD + forward FD"),
+    "pdfo":          (":",  "#000000", "PDFO (BOBYQA)"),
 }
 
 

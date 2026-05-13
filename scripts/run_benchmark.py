@@ -38,12 +38,24 @@ METHOD_LABELS = {
 }
 
 
-def _run_one_dfbd(p, est_fn, *, max_evals, sigma, seed, L0, eta, reuse_radius, q_max):
+def _run_one_dfbd(
+    p,
+    est_fn,
+    *,
+    max_evals,
+    sigma,
+    seed,
+    L0,
+    eta,
+    reuse_radius,
+    q_max,
+    reuse_min_evals,
+):
     t0 = time.perf_counter()
     res = run_dfbd(p.f, p.x0, est_fn,
                    xi_f=sigma, max_evals=max_evals, L0=L0, eta=eta,
                    noise_sigma=sigma, reuse_radius=reuse_radius, q_max=q_max,
-                   seed=seed)
+                   reuse_min_evals=reuse_min_evals, seed=seed)
     elapsed = time.perf_counter() - t0
     info = {
         "n_evals":  res.n_evals,
@@ -89,6 +101,9 @@ def main():
     parser.add_argument("--eta", type=float, default=2.0)
     parser.add_argument("--reuse-radius", type=float, default=2.0)
     parser.add_argument("--q-max", type=int, default=25)
+    parser.add_argument("--reuse-min-evals", type=int, default=-1,
+                        help="Minimum oracle evaluations before spectral reuse. "
+                             "Use -1 for auto (n+1).")
     parser.add_argument("--out-dir", type=str, default=os.path.join(ROOT, "output"))
     parser.add_argument("--problems-limit", type=int, default=0,
                         help="If > 0, only use the first N problems (for smoke tests).")
@@ -161,8 +176,10 @@ def main():
             n = p.n
             max_evals = args.max_evals_factor * (n + 1)
             f0_val = float(p.f(p.x0))
-            sigma_dims[p.name] = n
-            sigma_f0[p.name]   = f0_val
+            for seed in seeds:
+                p_key = f"{p.name}__s{seed}"
+                sigma_dims[p_key] = n
+                sigma_f0[p_key]   = f0_val
             print(f"[bench]  [{p_idx:2d}/{len(problems):2d}] {p.name:20s} "
                   f"n={n:2d}  budget={max_evals:5d}  f(x0)={f0_val:.3e}")
 
@@ -178,6 +195,8 @@ def main():
                             p, est_fn, max_evals=max_evals, sigma=sigma, seed=seed,
                             L0=args.L0, eta=args.eta,
                             reuse_radius=args.reuse_radius, q_max=args.q_max,
+                            reuse_min_evals=(None if args.reuse_min_evals < 0
+                                             else args.reuse_min_evals),
                         )
                     ts.append(traj)
                     infos.append(info)
@@ -190,9 +209,9 @@ def main():
                 elapsed_sum = sum(i["elapsed"] for i in infos)
                 status_list = [i["status"] for i in infos]
 
-                mean_traj = np.mean(ts, axis=0)
-                np.minimum.accumulate(mean_traj, out=mean_traj)
-                sigma_trajs[method_name][p.name] = mean_traj
+                for seed, traj in zip(seeds, ts):
+                    p_key = f"{p.name}__s{seed}"
+                    sigma_trajs[method_name][p_key] = traj
 
                 # Per-problem print line.
                 # Best f: use the median across seeds (robust to one bad seed).
@@ -227,21 +246,22 @@ def main():
 
         # Per-sigma summary: %-solved at each (method, tau).
         methods = list(sigma_trajs.keys())
-        fL = {p.name: float(min(sigma_trajs[s][p.name][-1] for s in methods))
-              for p in problems}
+        all_p_keys = sorted(sigma_dims.keys())
+        fL = {pk: float(min(sigma_trajs[s][pk][-1] for s in methods))
+              for pk in all_p_keys}
         for tau in taus:
             for s in methods:
                 solved = 0
-                for p in problems:
-                    target = tau * sigma_f0[p.name] + (1.0 - tau) * fL[p.name]
-                    if evals_to_reach(sigma_trajs[s][p.name], target) is not None:
+                for pk in all_p_keys:
+                    target = tau * sigma_f0[pk] + (1.0 - tau) * fL[pk]
+                    if evals_to_reach(sigma_trajs[s][pk], target) is not None:
                         solved += 1
                 summary_rows.append({
                     "method":     s,
                     "sigma":      sigma,
                     "tau":        tau,
-                    "pct_solved": 100.0 * solved / max(len(problems), 1),
-                    "n_problems": len(problems),
+                    "pct_solved": 100.0 * solved / max(len(all_p_keys), 1),
+                    "n_problems": len(all_p_keys),
                 })
         print(f"[bench]    done in {time.time() - t0:.1f}s")
 

@@ -14,6 +14,20 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# 0. Create and activate a virtual environment.
+VENV_PATH="$ROOT/.venv"
+if [[ ! -d "$VENV_PATH" ]]; then
+    echo "[setup] Creating Python venv at $VENV_PATH ..."
+    python3 -m venv "$VENV_PATH"
+else
+    echo "[setup] Using existing venv at $VENV_PATH"
+fi
+
+echo "[setup] Activating venv ..."
+# shellcheck disable=SC1091
+source "$VENV_PATH/bin/activate"
+echo "[setup] venv activated; Python is $(which python3)"
+
 BENDFO_REPO="https://github.com/POptUS/BenDFO.git"
 SPECTRALDESIGN_REPO="https://github.com/milzj/spectraldesign.git"
 
@@ -39,19 +53,12 @@ COMMITS_FILE="$ROOT/scripts/COMMITS.txt"
 } > "$COMMITS_FILE"
 echo "[setup] Wrote $COMMITS_FILE"
 
-# 3. pip install the package + dev tools (skipped in CI; CI does this explicitly).
+# 3. pip install the package + dev tools in the venv (skipped in CI; CI does it explicitly).
 if [[ $CI_ONLY -eq 0 ]]; then
-    echo "[setup] Installing spectral-dfo + spectraldesign + dev deps..."
-    # Detect PEP 668 (externally-managed) Homebrew/Debian Python and pass the
-    # explicit override flag.  CI and venvs don't need this.
-    PIP_EXTRA=()
-    if python3 -c "import sysconfig,sys,os; \
-        marker = os.path.join(sysconfig.get_path('stdlib'), 'EXTERNALLY-MANAGED'); \
-        sys.exit(0 if os.path.exists(marker) else 1)"; then
-        PIP_EXTRA+=(--break-system-packages --user)
-    fi
-    python3 -m pip install "${PIP_EXTRA[@]}" --upgrade pip
-    python3 -m pip install "${PIP_EXTRA[@]}" -e ".[dev]"
+    echo "[setup] Installing spectral-dfo + spectraldesign + dev deps into venv ..."
+    python3 -m pip install --upgrade pip
+    python3 -m pip install --upgrade --force-reinstall --no-cache-dir "git+$SPECTRALDESIGN_REPO"
+    python3 -m pip install -e ".[dev]"
 fi
 
 echo "[setup] Done."
