@@ -70,7 +70,7 @@ def run_pdfo(
                     "maxfev": int(max_evals),
                     "rhoend": float(rhoend),
                     "ftarget": -np.inf,
-                    "quiet": True,
+                    "quiet": False,
                 },
             )
             oracle.pdfo_status = int(getattr(result, "status", -1))

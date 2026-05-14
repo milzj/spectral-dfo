@@ -43,6 +43,8 @@ class DFBDResult:
     def best_f(self): return self.oracle.best_f
     @property
     def best_x(self): return self.oracle.best_x
+    @property
+    def n_iters(self): return len(self.L_history)
 
     def trajectory_array(self, max_evals: int) -> np.ndarray:
         return self.oracle.trajectory_array(max_evals)
@@ -166,6 +168,7 @@ def run_dfbd(
     q_max: int = 25,
     reuse_min_evals: int | None = None,
     oracle: NoisyOracle | None = None,
+    callback: "Callable[[int, int, float, float, float, float], None] | None" = None,
 ) -> DFBDResult:
     """Run Algorithm 4 of Khanh-Mordukhovich-Tran (2024).
 
@@ -225,9 +228,9 @@ def run_dfbd(
 
             x_trial = x - tau * g
             phi_trial = oracle(x_trial)
-            if not np.isfinite(phi_trial):
+            #if not np.isfinite(phi_trial):
                 # Non-finite trial value: step size is too large; try a bigger L.
-                continue
+            #    continue
             rhs = phi_x - (tau/9.0) * g @ g 
             if phi_trial <= rhs:
                 x = x_trial
@@ -235,6 +238,9 @@ def run_dfbd(
                 L = L_trial
                 L_history.append(L)
                 success = True
+                if callback is not None:
+                    g_norm = float(np.linalg.norm(g))
+                    callback(len(L_history), oracle.n_evals, phi_x, g_norm, L, delta)
                 break
 
         if not success:

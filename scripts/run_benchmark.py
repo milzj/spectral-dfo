@@ -27,6 +27,7 @@ from spectral_dfo import (    # noqa: E402
     run_dfbd, fd_gradient, spectral_gradient,
     run_pdfo, load_problems, trajectory_array,
     data_profile, perf_profile, evals_to_reach,
+    NoisyOracle,
 )
 from spectral_dfo.pdfo_runner import pdfo_short_status   # noqa: E402
 
@@ -50,15 +51,35 @@ def _run_one_dfbd(
     reuse_radius,
     q_max,
     reuse_min_evals,
+    method_name="dfbd",
+    verbose=False,
 ):
+    callback = None
+    if verbose:
+        col = f"{'Iter':>5}  {'Evals':>6}  {'f(x)':>12}  {'||g||':>12}  {'L':>10}  {'delta':>10}"
+        sep = "-" * len(col)
+        print(f"\n{sep}")
+        print(f"  Solver : {method_name}")
+        print(f"  Problem: {p.name}  (n={p.n})")
+        print(f"  Seed   : {seed}    sigma={sigma:g}    budget={max_evals}")
+        print(sep)
+        print(col)
+        print(sep)
+
+        def callback(it, evals, fx, gnorm, L, delta):  # noqa: E306
+            print(f"{it:5d}  {evals:6d}  {fx:12.4e}  "
+                  f"{gnorm:12.4e}  {L:10.3e}  {delta:10.3e}")
+
     t0 = time.perf_counter()
     res = run_dfbd(p.f, p.x0, est_fn,
                    xi_f=sigma, max_evals=max_evals, L0=L0, eta=eta,
                    noise_sigma=sigma, reuse_radius=reuse_radius, q_max=q_max,
-                   reuse_min_evals=reuse_min_evals, seed=seed)
+                   reuse_min_evals=reuse_min_evals, seed=seed,
+                   callback=callback)
     elapsed = time.perf_counter() - t0
     info = {
         "n_evals":  res.n_evals,
+        "n_iters":  res.n_iters,
         "best_f":   res.best_f,
         "status":   res.status,
         "elapsed":  elapsed,
@@ -66,20 +87,40 @@ def _run_one_dfbd(
     return trajectory_array(res, max_evals), info
 
 
-def _run_one_pdfo(p, *, max_evals, sigma, seed):
+def _run_one_pdfo(p, *, max_evals, sigma, seed, verbose=False):
+    oracle = NoisyOracle(p.f, noise_sigma=sigma,
+                         rng=np.random.default_rng(seed), track_cache=False)
+    if verbose:
+        sep = "-" * 58
+        col = f"{'Evals':>6}  {'f(x) noisy':>12}  {'best_f':>12}"
+        print(f"\n{sep}")
+        print(f"  Solver : PDFO (BOBYQA)")
+        print(f"  Problem: {p.name}  (n={p.n})")
+        print(f"  Seed   : {seed}    sigma={sigma:g}    budget={max_evals}")
+        print(sep)
+        print(col)
+        print("-" * len(col))
+
+        def _cb(n_evals, v_noisy, best_f):
+            print(f"{n_evals:6d}  {v_noisy:12.4e}  {best_f:12.4e}")
+
+        oracle.eval_callback = _cb
+
     t0 = time.perf_counter()
-    oracle = run_pdfo(p.f, p.x0, max_evals=max_evals, noise_sigma=sigma, seed=seed)
+    oracle = run_pdfo(p.f, p.x0, max_evals=max_evals, noise_sigma=sigma, seed=seed,
+                     oracle=oracle)
     elapsed = time.perf_counter() - t0
     # PDFO's actual termination reason — one of {"rhoend", "ftarget",
     # "npt_bad", "maxfev", "crash", ...} — extracted from the OptimizeResult.
     status = pdfo_short_status(oracle)
     info = {
-        "n_evals":     oracle.n_evals,
-        "best_f":      oracle.best_f,
-        "status":      status,
-        "pdfo_status": oracle.pdfo_status,
+        "n_evals":      oracle.n_evals,
+        "n_iters":      None,
+        "best_f":       oracle.best_f,
+        "status":       status,
+        "pdfo_status":  oracle.pdfo_status,
         "pdfo_message": oracle.pdfo_message,
-        "elapsed":     elapsed,
+        "elapsed":      elapsed,
     }
     return trajectory_array(oracle, max_evals), info
 
@@ -109,6 +150,8 @@ def main():
                         help="If > 0, only use the first N problems (for smoke tests).")
     parser.add_argument("--smoke", action="store_true",
                         help="Equivalent to small budget + few problems + few seeds.")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Print a detailed line per (problem, method, seed).")
     args = parser.parse_args()
 
     if args.smoke:
@@ -189,7 +232,8 @@ def main():
                 for seed in seeds:
                     if method_name == "pdfo":
                         traj, info = _run_one_pdfo(p, max_evals=max_evals,
-                                                   sigma=sigma, seed=seed)
+                                                   sigma=sigma, seed=seed,
+                                                   verbose=args.verbose)
                     else:
                         traj, info = _run_one_dfbd(
                             p, est_fn, max_evals=max_evals, sigma=sigma, seed=seed,
@@ -197,12 +241,36 @@ def main():
                             reuse_radius=args.reuse_radius, q_max=args.q_max,
                             reuse_min_evals=(None if args.reuse_min_evals < 0
                                              else args.reuse_min_evals),
+                            method_name=method_name,
+                            verbose=args.verbose,
                         )
                     ts.append(traj)
                     infos.append(info)
                     for k, v in enumerate(traj, start=1):
                         traj_w.writerow([method_name, p.name, n, sigma, seed, k,
                                          float(v)])
+                    if args.verbose:
+                        iters_str = (
+                            f"iters={info['n_iters']:4d}  "
+                            if info["n_iters"] is not None else ""
+                        )
+                        f0_str = f"{f0_val:.3e}"
+                        bf_str = (f"{info['best_f']:.3e}"
+                                  if np.isfinite(info['best_f']) else "     inf")
+                        reduction = (
+                            f"{info['best_f'] / f0_val:.3e}"
+                            if f0_val != 0 and np.isfinite(info['best_f']) else "  n/a "
+                        )
+                        print(
+                            f"[bench]      seed={seed:3d}  "
+                            f"{iters_str}"
+                            f"evals={info['n_evals']:5d}  "
+                            f"f0={f0_str}  "
+                            f"best_f={bf_str}  "
+                            f"f/f0={reduction}  "
+                            f"status={info['status']}  "
+                            f"({info['elapsed']:.2f}s)"
+                        )
                 # Aggregate per-method-per-problem stats across seeds.
                 n_evals_arr = np.array([i["n_evals"] for i in infos])
                 best_f_arr  = np.array([i["best_f"]  for i in infos])
