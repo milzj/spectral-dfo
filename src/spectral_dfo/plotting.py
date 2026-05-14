@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 METHOD_STYLES = {
     "dfbd_spectral": ("-",  "#1f77b4", "DFBD + spectral design"),
-    "dfbd_fd":       ("--", "#ff7f0e", "DFBD + forward FD"),
+    "dfbd_fd":       ("--", "#ff7f0e", "DFBD + forward differences"),
     "pdfo":          (":",  "#000000", "PDFO (BOBYQA)"),
 }
 
@@ -28,9 +28,9 @@ def plot_data_profile(
         ls, color, label = METHOD_STYLES.get(s, ("-", "k", s))
         plt.step(kappa_grid, profiles[s], where="post",
                  color=color, linestyle=ls, linewidth=1.8, label=label)
-    plt.xlabel(r"Evaluations / $(n+1)$")
+    plt.xlabel(r"Function evaluations / $(n+1)$")
     plt.ylabel("Fraction of problems solved")
-    plt.title(rf"Data profile, $\tau={tau:g}$  ($\sigma{{=}}{sigma:g}$)")
+    #plt.title(rf"Data profile, $\tau={tau:g}$  ($\sigma{{=}}{sigma:g}$)")
     plt.ylim(-0.02, 1.02); plt.grid(True, alpha=0.3)
     plt.legend(loc="lower right", fontsize=9); plt.tight_layout()
     os.makedirs(os.path.dirname(os.path.abspath(savepath)) or ".", exist_ok=True)

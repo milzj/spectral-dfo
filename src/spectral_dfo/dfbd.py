@@ -92,7 +92,7 @@ def spectral_gradient(x, phi_x, delta, oracle, n,
     if allow_reuse:
         for (pt, val) in oracle.cache:
             d = float(np.linalg.norm(pt - x))
-            if 1e-6 < d <= R:
+            if d <= R:
                 reusable.append((pt, val, d))
     if len(reusable) > q_max:
         reusable.sort(key=lambda t: t[2])

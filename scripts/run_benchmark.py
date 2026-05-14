@@ -1,5 +1,5 @@
 """Run the full DFBD-spectral / DFBD-FD / PDFO benchmark on the smooth
-Moré–Wild test set with layered Gaussian noise.
+Moré–Wild test set with layered uniform noise.
 
 Writes long-format CSV(s) to `output/`:
   - trajectories.csv : (method, problem, n, sigma, seed, eval_index, best_true_f)

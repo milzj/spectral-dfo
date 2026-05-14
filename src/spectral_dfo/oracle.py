@@ -18,7 +18,8 @@ from typing import Callable
 class NoisyOracle:
     """Thin wrapper around a deterministic objective `f` that
 
-      - returns `f(x) + ξ` with `ξ ~ N(0, noise_sigma^2)` from a private RNG,
+            - returns `f(x) + ξ` with `ξ ~ Uniform(-noise_sigma, noise_sigma)`
+                from a private RNG,
       - records every `(x, f(x) + ξ)` to `self.cache`,
       - updates `self.best_f` (true) / `self.best_x` per evaluation,
       - appends `(n_evals, best_f)` to `self.trajectory`.
@@ -74,7 +75,7 @@ class NoisyOracle:
 
         v_true = float(self._f(x_arr))
         v_noisy = (
-            v_true + float(self._rng.normal(0.0, self._noise_sigma))
+            v_true + float(self._rng.uniform(-self._noise_sigma, self._noise_sigma))
             if self._noise_sigma > 0 else v_true
         )
         if not np.isfinite(v_true) or not np.isfinite(v_noisy):

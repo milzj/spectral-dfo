@@ -2,7 +2,7 @@
 
 DFBD (Algorithm 4 of Khanh–Mordukhovich–Tran 2024) with **spectral-design** sampling and
 **forward finite-difference** sampling, benchmarked against **PDFO/BOBYQA** on the
-**smooth Moré–Wild** test set with layered Gaussian noise.
+**smooth Moré–Wild** test set with layered uniform noise.
 
 This repo is the demonstration of the spectral-design sampling rule from
 <https://github.com/milzj/spectraldesign> applied inside a published noise-aware
@@ -12,7 +12,7 @@ derivative-free optimization algorithm. It is structured so it can be dropped in
 ## What the benchmark measures
 
 For each (problem, σ, seed) triple we run three solvers with the same evaluation budget
-and the same Gaussian-noise sequence per seed:
+and the same noise sequence per seed:
 
 | Method | Inner gradient estimator | Outer driver |
 |---|---|---|
@@ -79,7 +79,7 @@ spectral-dfo/
 | Setting | Value |
 |---|---|
 | Test problems | 53 smooth Moré–Wild instances (`calfun(probtype="smooth")`) |
-| Noise model | layered Gaussian `f(x) + 𝒩(0, σ²)` |
+| Noise model | layered uniform `f(x) + U(-σ, σ)` |
 | σ levels | {10⁻⁶, 10⁻⁴, 10⁻², 10⁻¹} |
 | τ levels | {10⁻¹, 10⁻², 10⁻³, 10⁻⁵, 10⁻⁷} |
 | Budget per problem | `200·(n+1)` function evaluations |

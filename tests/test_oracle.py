@@ -29,14 +29,14 @@ def test_noise_injection_reproducible_per_seed():
     assert seq_a == seq_b
 
 
-def test_noise_zero_mean_unit_variance_aproximately():
-    """Quick sanity check: empirical mean/std of the noise sequence."""
+def test_noise_zero_mean_uniform_std_aproximately():
+    """Quick sanity check for Uniform(-sigma, sigma): mean ~ 0, std ~ sigma/sqrt(3)."""
     f = lambda x: 0.0
     o = NoisyOracle(f, noise_sigma=1.0, seed=0)
     x = np.array([0.0])
     noises = np.array([o(x) for _ in range(5000)])
     assert abs(noises.mean()) < 0.05
-    assert abs(noises.std() - 1.0) < 0.05
+    assert abs(noises.std() - (1.0 / np.sqrt(3.0))) < 0.03
 
 
 def test_two_oracles_same_seed_disagree_in_realizations_post_split():

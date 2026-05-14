@@ -7,7 +7,7 @@ perturbed start `x0 = dfoxs(n, nprob, factor=10.0)`.
 
 `load_problems()` yields `MoreWildProblem` objects which wrap `calfun(...,
 probtype="smooth", num_outs=1)` so the smooth (noiseless) objective is
-returned.  Gaussian noise is layered on top inside `run_dfbd` / `run_pdfo`.
+returned.  Uniform noise is layered on top inside `run_dfbd` / `run_pdfo`.
 """
 from __future__ import annotations
 import os
