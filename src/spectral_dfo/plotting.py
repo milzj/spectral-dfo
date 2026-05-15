@@ -29,7 +29,7 @@ def plot_data_profile(
         ls, color, label = METHOD_STYLES.get(s, ("-", "k", s))
         plt.step(kappa_grid, profiles[s], where="post",
                  color=color, linestyle=ls, linewidth=1.8, label=label)
-    plt.xlabel(r"Function evaluations / $(n+1)$")
+    plt.xlabel(r"Function evaluations / $(d+1)$")
     plt.ylabel("Fraction of problems solved")
     #plt.title(rf"Data profile, $\tau={tau:g}$  ($\sigma{{=}}{sigma:g}$)")
     plt.ylim(-0.02, 1.02); plt.grid(True, alpha=0.3)
