@@ -1,7 +1,7 @@
 # spectral-dfo
 
-DFBD (Algorithm 4 of Khanh–Mordukhovich–Tran 2024) with **spectral-design** sampling and
-**forward finite-difference** sampling, benchmarked against **PDFO/BOBYQA** on the
+DFBD (Algorithm 4 of Khanh–Mordukhovich–Tran 2025) with **spectral-design** sampling,
+**coordinate-LS** sampling, and **forward finite-difference** sampling on the
 **smooth Moré–Wild** test set with layered uniform noise.
 
 This repo is the demonstration of the spectral-design sampling rule from
@@ -11,14 +11,14 @@ derivative-free optimization algorithm. It is structured so it can be dropped in
 
 ## What the benchmark measures
 
-For each (problem, σ, seed) triple we run three solvers with the same evaluation budget
+For each (problem, σ, seed) triple we run three DFBD variants with the same evaluation budget
 and the same noise sequence per seed:
 
 | Method | Inner gradient estimator | Outer driver |
 |---|---|---|
 | `dfbd_spectral` | spectral-design + reuse + LS regression (calls `spectraldesign`) | DFBD |
+| `dfbd_coord_ls` | coordinate directions + reuse + LS regression (no `spectraldesign` call) | DFBD |
 | `dfbd_fd`       | forward FD per coordinate                                          | DFBD |
-| `pdfo`          | (none — quadratic-interpolation trust region)                       | PDFO/BOBYQA |
 
 Outputs: Moré–Wild data profiles and Dolan–Moré performance profiles at five accuracy
 levels τ ∈ {10⁻¹, 10⁻², 10⁻³, 10⁻⁵, 10⁻⁷}.
@@ -36,7 +36,7 @@ bash scripts/setup.sh
 # 30-second sanity check: 5 problems, 1 sigma, 3 seeds.
 bash scripts/run_quick_smoke.sh
 
-# Full sweep: 53 problems x 4 sigma levels x 3 methods x 30 seeds.
+# Full sweep: 53 problems x 4 sigma levels x 3 DFBD variants x 30 seeds.
 # Takes ~1-2 h on a laptop.
 bash scripts/run_benchmark.sh
 
@@ -54,8 +54,8 @@ spectral-dfo/
 ├── .github/workflows/ci.yml        # CI: matrix Python 3.10–3.12, tests + smoke
 ├── src/spectral_dfo/               # the importable package
 │   ├── __init__.py                 # public API
-│   ├── dfbd.py                     # Algorithm 4 driver; fd_/spectral_gradient
-│   ├── pdfo_runner.py              # PDFO wrapper with deterministic noise
+│   ├── dfbd.py                     # Algorithm 4 driver; fd_/coord_ls/spectral_gradient
+│   ├── pdfo_runner.py              # optional PDFO wrapper (not used in default simulations)
 │   ├── problems.py                 # smooth Moré–Wild loader (uses BenDFO/calfun)
 │   ├── profiles.py                 # data + performance profile utilities
 │   └── plotting.py                 # matplotlib renderers
@@ -84,7 +84,7 @@ spectral-dfo/
 | τ levels | {10⁻¹, 10⁻², 10⁻³, 10⁻⁵, 10⁻⁷} |
 | Budget per problem | `200·(n+1)` function evaluations |
 | Seeds | 30 (`np.random.default_rng(seed)` with `seed ∈ {0, …, 29}`) |
-| Solvers | DFBD-spectral, DFBD-FD, PDFO/BOBYQA |
+| Solvers | DFBD-spectral, DFBD-coordinate-LS, DFBD-FD |
 
 ## Outputs
 
@@ -111,7 +111,7 @@ spectral-dfo/
   GitHub `main` branch (specified in `pyproject.toml`).
 - [BenDFO](https://github.com/POptUS/BenDFO) — cloned by `setup.sh` because the upstream
   `py/` folder is not pip-installable.
-- [pdfo](https://www.pdfo.net/) — pip dependency.
+- [pdfo](https://www.pdfo.net/) — optional dependency (kept for non-default experiments).
 - numpy, scipy, matplotlib, pandas.
 
 ## License

@@ -63,6 +63,8 @@ class NoisyOracle:
         self._n_evals = 0
         self._best_f: float = float("inf")
         self._best_x: np.ndarray | None = None
+        self.eval_callback: "Callable[[int, float, float], None] | None" = None
+        """Optional hook called after every evaluation as ``callback(n_evals, v_noisy, best_f)``."""
 
     # ----- the core interface used by all algorithms -----
 
@@ -97,6 +99,8 @@ class NoisyOracle:
             self._best_f = v_true
             self._best_x = x_arr.copy()
         self._trajectory.append((self._n_evals, self._best_f))
+        if self.eval_callback is not None:
+            self.eval_callback(self._n_evals, v_noisy, self._best_f)
         return v_noisy
 
     # ----- read-only views of the state -----

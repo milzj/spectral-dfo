@@ -8,13 +8,22 @@ Public API:
     fd_gradient     Forward finite-difference estimator (per coordinate).
     spectral_gradient
                     Spectral-design + reuse + LS estimator (calls spectraldesign).
+    coord_ls_gradient
+                    Reuse + LS estimator using standard coordinate directions.
     run_pdfo        PDFO/BOBYQA wrapper that drives the same NoisyOracle.
     load_problems   Iterate the smooth Moré-Wild test set (uses BenDFO/py/calfun).
     data_profile, perf_profile, plot_profiles
                     Moré-Wild (2009) and Dolan-Moré (2002) profile utilities.
 """
 from .oracle import NoisyOracle
-from .dfbd import run_dfbd, fd_gradient, spectral_gradient, trajectory_array, DFBDResult
+from .dfbd import (
+    run_dfbd,
+    fd_gradient,
+    spectral_gradient,
+    coord_ls_gradient,
+    trajectory_array,
+    DFBDResult,
+)
 from .pdfo_runner import run_pdfo
 from .problems import load_problems, MoreWildProblem, list_problem_names, list_problem_dims
 from .profiles import data_profile, perf_profile, evals_to_reach
@@ -22,7 +31,7 @@ from .plotting import plot_data_profile, plot_perf_profile
 
 __all__ = [
     "NoisyOracle",
-    "run_dfbd", "fd_gradient", "spectral_gradient", "trajectory_array", "DFBDResult",
+    "run_dfbd", "fd_gradient", "spectral_gradient", "coord_ls_gradient", "trajectory_array", "DFBDResult",
     "run_pdfo",
     "load_problems", "MoreWildProblem", "list_problem_names", "list_problem_dims",
     "data_profile", "perf_profile", "evals_to_reach",

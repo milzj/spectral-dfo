@@ -8,6 +8,8 @@ The framework is gradient-estimator-agnostic.  We provide two:
     fd_gradient        forward finite differences (per coordinate)
     spectral_gradient  spectral-design directions + reuse + LS regression,
                        using the spectraldesign package.
+    coord_ls_gradient  same LS model as spectral_gradient, but probes only
+                       standard coordinate directions (no spectraldesign call).
 
 All noise injection, caching, and trajectory tracking lives in
 `NoisyOracle` (`oracle.py`); the driver and gradient estimators only call
@@ -43,6 +45,8 @@ class DFBDResult:
     def best_f(self): return self.oracle.best_f
     @property
     def best_x(self): return self.oracle.best_x
+    @property
+    def n_iters(self): return len(self.L_history)
 
     def trajectory_array(self, max_evals: int) -> np.ndarray:
         return self.oracle.trajectory_array(max_evals)
@@ -131,9 +135,61 @@ def spectral_gradient(x, phi_x, delta, oracle, n,
     return g
 
 
+def coord_ls_gradient(x, phi_x, delta, oracle, n,
+                      *, reuse_radius=100, q_max=np.inf, reuse_min_evals=None):
+    """Coordinate-direction LS + reuse.
+
+    Mirrors `spectral_gradient` but replaces the spectraldesign directions with
+    the standard basis vectors.  This keeps the same reuse-and-regression
+    machinery while avoiding any spectral-design call.
+    """
+    warmup_evals = (n + 1) if reuse_min_evals is None else int(reuse_min_evals)
+    allow_reuse = oracle.n_evals >= warmup_evals
+
+    R = reuse_radius * delta
+    reusable: list[tuple[np.ndarray, float, float]] = []
+    if allow_reuse:
+        for (pt, val) in oracle.cache:
+            d = float(np.linalg.norm(pt - x))
+            if d <= R:
+                reusable.append((pt, val, d))
+    if len(reusable) > q_max:
+        reusable.sort(key=lambda t: t[2])
+        reusable = reusable[:q_max]
+
+    if reusable:
+        U = np.column_stack([(pt - x) / delta for pt, _, _ in reusable])
+        U_resid = np.array([val - phi_x for _, val, _ in reusable])
+
+    # Probe along the standard coordinate directions.
+    if reusable:
+        k = max(1, n // 2, n - np.linalg.matrix_rank(U))  # at least 1 direction, even if U is full-rank
+    else:
+        k = n
+
+
+    X = np.eye(n,k)
+    X_resid = np.zeros(k)
+    for i in range(k):
+        x_plus = x + delta * X[:, i]
+        phi_plus = oracle(x_plus)
+        X_resid[i] = phi_plus - phi_x
+
+    if reusable:
+        M = np.vstack([U.T, X.T])
+        rhs = np.concatenate([U_resid, X_resid])
+    else:
+        M = X.T
+        rhs = X_resid
+
+    g, *_ = np.linalg.lstsq(delta * M, rhs, rcond=None)
+    return g
+
+
 GRADIENT_ESTIMATORS = {
     "fd": fd_gradient,
     "spectral": spectral_gradient,
+    "coord_ls": coord_ls_gradient,
 }
 
 
@@ -166,6 +222,7 @@ def run_dfbd(
     q_max: int = 25,
     reuse_min_evals: int | None = None,
     oracle: NoisyOracle | None = None,
+    callback: "Callable[[int, int, float, float, float, float], None] | None" = None,
 ) -> DFBDResult:
     """Run Algorithm 4 of Khanh-Mordukhovich-Tran (2024).
 
@@ -225,9 +282,9 @@ def run_dfbd(
 
             x_trial = x - tau * g
             phi_trial = oracle(x_trial)
-            if not np.isfinite(phi_trial):
+            #if not np.isfinite(phi_trial):
                 # Non-finite trial value: step size is too large; try a bigger L.
-                continue
+            #    continue
             rhs = phi_x - (tau/9.0) * g @ g 
             if phi_trial <= rhs:
                 x = x_trial
@@ -235,6 +292,9 @@ def run_dfbd(
                 L = L_trial
                 L_history.append(L)
                 success = True
+                if callback is not None:
+                    g_norm = float(np.linalg.norm(g))
+                    callback(len(L_history), oracle.n_evals, phi_x, g_norm, L, delta)
                 break
 
         if not success:
