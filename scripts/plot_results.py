@@ -105,7 +105,7 @@ def main():
     # values.  Symptom: concurrent run_benchmark.py runs wrote to the same file
     # and produced byte-level interleaved garbage.
     n_rows_in = len(df)
-    valid_methods = {"dfbd_spectral", "dfbd_fd", "pdfo"}
+    valid_methods = {"dfbd_spectral", "dfbd_coord_ls", "dfbd_fd"}
     df = df[df.method.isin(valid_methods)]
     # `seed` should be an integer 0..N; reject anything fractional.
     df = df[df.seed.apply(lambda s: float(s).is_integer())]
@@ -145,7 +145,7 @@ def main():
     }
 
     mean_trajs_by_sigma = _reconstruct_per_seed_trajs(df)
-    method_order = ["dfbd_spectral", "dfbd_fd", "pdfo"]
+    method_order = ["dfbd_spectral", "dfbd_coord_ls", "dfbd_fd"]
 
     for sigma, trajs in mean_trajs_by_sigma.items():
         # The denominator is always the canonical 53 Moré-Wild problems.

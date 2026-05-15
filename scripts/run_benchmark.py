@@ -1,4 +1,4 @@
-"""Run the full DFBD-spectral / DFBD-FD / PDFO benchmark on the smooth
+"""Run the full DFBD-spectral / DFBD-coordinate-LS / DFBD-FD benchmark on the smooth
 Moré–Wild test set with layered uniform noise.
 
 Writes long-format CSV(s) to `output/`:
@@ -24,18 +24,16 @@ if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
 from spectral_dfo import (    # noqa: E402
-    run_dfbd, fd_gradient, spectral_gradient,
-    run_pdfo, load_problems, trajectory_array,
+    run_dfbd, fd_gradient, spectral_gradient, coord_ls_gradient,
+    load_problems, trajectory_array,
     data_profile, perf_profile, evals_to_reach,
-    NoisyOracle,
 )
-from spectral_dfo.pdfo_runner import pdfo_short_status   # noqa: E402
 
 
 METHOD_LABELS = {
     "dfbd_spectral": "DFBD + spectral",
+    "dfbd_coord_ls": "DFBD + coordinate LS",
     "dfbd_fd":       "DFBD + FD",
-    "pdfo":          "PDFO (BOBYQA)",
 }
 
 
@@ -85,44 +83,6 @@ def _run_one_dfbd(
         "elapsed":  elapsed,
     }
     return trajectory_array(res, max_evals), info
-
-
-def _run_one_pdfo(p, *, max_evals, sigma, seed, verbose=False):
-    oracle = NoisyOracle(p.f, noise_sigma=sigma,
-                         rng=np.random.default_rng(seed), track_cache=False)
-    if verbose:
-        sep = "-" * 58
-        col = f"{'Evals':>6}  {'f(x) noisy':>12}  {'best_f':>12}"
-        print(f"\n{sep}")
-        print(f"  Solver : PDFO (BOBYQA)")
-        print(f"  Problem: {p.name}  (n={p.n})")
-        print(f"  Seed   : {seed}    sigma={sigma:g}    budget={max_evals}")
-        print(sep)
-        print(col)
-        print("-" * len(col))
-
-        def _cb(n_evals, v_noisy, best_f):
-            print(f"{n_evals:6d}  {v_noisy:12.4e}  {best_f:12.4e}")
-
-        oracle.eval_callback = _cb
-
-    t0 = time.perf_counter()
-    oracle = run_pdfo(p.f, p.x0, max_evals=max_evals, noise_sigma=sigma, seed=seed,
-                     oracle=oracle)
-    elapsed = time.perf_counter() - t0
-    # PDFO's actual termination reason — one of {"rhoend", "ftarget",
-    # "npt_bad", "maxfev", "crash", ...} — extracted from the OptimizeResult.
-    status = pdfo_short_status(oracle)
-    info = {
-        "n_evals":      oracle.n_evals,
-        "n_iters":      None,
-        "best_f":       oracle.best_f,
-        "status":       status,
-        "pdfo_status":  oracle.pdfo_status,
-        "pdfo_message": oracle.pdfo_message,
-        "elapsed":      elapsed,
-    }
-    return trajectory_array(oracle, max_evals), info
 
 
 def _fmt_status_counts(statuses: list[str]) -> str:
@@ -198,19 +158,20 @@ def main():
         print(f"[bench] ============================================")
         # Storage for profile computation at this sigma.
         sigma_trajs: dict[str, dict[str, np.ndarray]] = {
-            "dfbd_spectral": {}, "dfbd_fd": {}, "pdfo": {},
+            "dfbd_spectral": {}, "dfbd_coord_ls": {}, "dfbd_fd": {},
         }
         sigma_dims: dict[str, int] = {}
         sigma_f0:   dict[str, float] = {}
 
         # Per-(sigma, method) running totals for end-of-sigma summary.
         method_totals = {m: {"elapsed": 0.0, "evals_sum": 0, "evals_n": 0,
-                              "statuses": []} for m in ("dfbd_spectral", "dfbd_fd", "pdfo")}
+                              "statuses": []}
+                        for m in ("dfbd_spectral", "dfbd_coord_ls", "dfbd_fd")}
 
         method_configs = [
             ("dfbd_spectral", spectral_gradient),
+            ("dfbd_coord_ls", coord_ls_gradient),
             ("dfbd_fd",       fd_gradient),
-            ("pdfo",          None),                # PDFO has its own runner
         ]
 
         seeds = tuple(range(args.seeds))
@@ -230,20 +191,15 @@ def main():
                 ts: list[np.ndarray] = []
                 infos: list[dict] = []
                 for seed in seeds:
-                    if method_name == "pdfo":
-                        traj, info = _run_one_pdfo(p, max_evals=max_evals,
-                                                   sigma=sigma, seed=seed,
-                                                   verbose=args.verbose)
-                    else:
-                        traj, info = _run_one_dfbd(
-                            p, est_fn, max_evals=max_evals, sigma=sigma, seed=seed,
-                            L0=args.L0, eta=args.eta,
-                            reuse_radius=args.reuse_radius, q_max=args.q_max,
-                            reuse_min_evals=(None if args.reuse_min_evals < 0
-                                             else args.reuse_min_evals),
-                            method_name=method_name,
-                            verbose=args.verbose,
-                        )
+                    traj, info = _run_one_dfbd(
+                        p, est_fn, max_evals=max_evals, sigma=sigma, seed=seed,
+                        L0=args.L0, eta=args.eta,
+                        reuse_radius=args.reuse_radius, q_max=args.q_max,
+                        reuse_min_evals=(None if args.reuse_min_evals < 0
+                                         else args.reuse_min_evals),
+                        method_name=method_name,
+                        verbose=args.verbose,
+                    )
                     ts.append(traj)
                     infos.append(info)
                     for k, v in enumerate(traj, start=1):
@@ -304,7 +260,7 @@ def main():
 
         # Per-(sigma, method) summary line.
         print(f"[bench] --- sigma = {sigma:g}: per-method totals ---")
-        for method_name in ("dfbd_spectral", "dfbd_fd", "pdfo"):
+        for method_name in ("dfbd_spectral", "dfbd_coord_ls", "dfbd_fd"):
             mt = method_totals[method_name]
             mean_evals = mt["evals_sum"] / max(mt["evals_n"], 1)
             print(f"[bench]    {method_name:14s}  "
