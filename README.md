@@ -1,9 +1,7 @@
 # spectral-dfo
 
-> **Paper:** This repository accompanies the manuscript  
-> **_Optimal Spectral Design with Prior Information_**  
-> by **Anton J. Kleywegt, Johannes Milz, Mohit Singh, and Weijun Xie**
-> (2026).
+This repository accompanies the manuscript  
+> **Anton J. Kleywegt, Johannes Milz, Mohit Singh, and Weijun Xie, _Optimal Spectral Design with Prior Information_, 2026**  
 
 `spectral-dfo` contains code and computational output for the
 derivative-free optimization illustrations reported in the manuscript,
