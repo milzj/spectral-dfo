@@ -1,5 +1,15 @@
 # spectral-dfo
 
+> **Paper:** This repository accompanies the manuscript  
+> **_Optimal Spectral Design with Prior Information_**  
+> by **Anton J. Kleywegt, Johannes Milz, Mohit Singh, and Weijun Xie**
+> (2026).
+
+`spectral-dfo` contains code and computational output for the
+derivative-free optimization illustrations reported in the manuscript,
+including experiments comparing spectral-design-based regression
+directions with finite-difference and coordinate-based variants.
+
 DFBD (Algorithm 4 of Khanh–Mordukhovich–Tran 2025) with **spectral-design** sampling,
 **coordinate-LS** sampling, and **forward finite-difference** sampling on the
 **smooth Moré–Wild** test set with layered uniform noise.
