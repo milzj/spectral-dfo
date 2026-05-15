@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1236889430.svg)](https://doi.org/10.5281/zenodo.20209975)
+
 # spectral-dfo
 
 This repository accompanies the manuscript  
