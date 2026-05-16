@@ -26,10 +26,11 @@ fi
 echo "[setup] Activating venv ..."
 # shellcheck disable=SC1091
 source "$VENV_PATH/bin/activate"
-echo "[setup] venv activated; Python is $(which python3)"
+VENV_PYTHON="$VENV_PATH/bin/python"
+echo "[setup] venv activated; Python is $($VENV_PYTHON -c 'import sys; print(sys.executable)')"
 
 BENDFO_REPO="https://github.com/POptUS/BenDFO.git"
-SPECTRALDESIGN_REPO="https://github.com/milzj/spectraldesign.git"
+SPECTRALDESIGN_URL="https://zenodo.org/records/20193098/files/milzj/spectraldesign-v2.zip?download=1"
 
 # 1. Clone BenDFO (always — Python files are not pip-installable).
 if [[ ! -d scripts/BenDFO ]]; then
@@ -44,11 +45,7 @@ COMMITS_FILE="$ROOT/scripts/COMMITS.txt"
 {
     echo "# Cloned external dependencies — pinned at:"
     echo "BenDFO         $(git -C scripts/BenDFO rev-parse HEAD)"
-    if [[ $CI_ONLY -eq 0 ]]; then
-        # Try to query spectraldesign's HEAD remotely (cheap, doesn't need a clone).
-        sd_sha=$(git ls-remote "$SPECTRALDESIGN_REPO" HEAD 2>/dev/null | awk '{print $1}' || echo unknown)
-        echo "spectraldesign $sd_sha"
-    fi
+    echo "spectraldesign   $SPECTRALDESIGN_URL"
     echo "# Generated $(date -u +%FT%TZ)"
 } > "$COMMITS_FILE"
 echo "[setup] Wrote $COMMITS_FILE"
@@ -56,9 +53,8 @@ echo "[setup] Wrote $COMMITS_FILE"
 # 3. pip install the package + dev tools in the venv (skipped in CI; CI does it explicitly).
 if [[ $CI_ONLY -eq 0 ]]; then
     echo "[setup] Installing spectral-dfo + spectraldesign + dev deps into venv ..."
-    python3 -m pip install --upgrade pip
-    python3 -m pip install --upgrade --force-reinstall --no-cache-dir "git+$SPECTRALDESIGN_REPO"
-    python3 -m pip install -e ".[dev]"
+    "$VENV_PYTHON" -m pip install --upgrade pip
+    "$VENV_PYTHON" -m pip install -e ".[dev]"
 fi
 
 echo "[setup] Done."

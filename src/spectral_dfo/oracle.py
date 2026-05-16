@@ -77,7 +77,7 @@ class NoisyOracle:
 
         v_true = float(self._f(x_arr))
         v_noisy = (
-            v_true + float(self._rng.uniform(-self._noise_sigma, self._noise_sigma))
+            v_true + float(self._rng.uniform(-self._noise_sigma/2, self._noise_sigma/2))
             if self._noise_sigma > 0 else v_true
         )
         if not np.isfinite(v_true) or not np.isfinite(v_noisy):

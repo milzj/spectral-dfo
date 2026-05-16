@@ -31,7 +31,7 @@ dependencies = [
     "matplotlib>=3.7",
     "pandas>=2.0",
     "pdfo>=2.2,<3",
-    "spectraldesign @ https://zenodo.org/records/20172845/files/milzj/spectraldesign-v1.zip?download=1",
+    "spectraldesign @ https://zenodo.org/records/20193098/files/milzj/spectraldesign-v2.zip?download=1",
 ]
 
 [project.optional-dependencies]
@@ -46,7 +46,7 @@ Homepage = "https://github.com/milzj/spectral-dfo"
 "Bug Tracker" = "https://github.com/milzj/spectral-dfo/issues"
 
 [tool.hatch.metadata]
-# Required so `spectraldesign @ git+https://...` is allowed in [project.dependencies].
+# Required so direct URL dependencies in [project.dependencies] are allowed.
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
