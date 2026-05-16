@@ -18,7 +18,7 @@ from typing import Callable
 class NoisyOracle:
     """Thin wrapper around a deterministic objective `f` that
 
-            - returns `f(x) + ξ` with `ξ ~ Uniform(-noise_sigma, noise_sigma)`
+            - returns `f(x) + ξ` with `ξ ~ Uniform(-noise_sigma/2, noise_sigma/2)`
                 from a private RNG,
       - records every `(x, f(x) + ξ)` to `self.cache`,
       - updates `self.best_f` (true) / `self.best_x` per evaluation,
