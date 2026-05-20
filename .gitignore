@@ -33,3 +33,7 @@ figures_smoke/
 .idea/
 .vscode/
 *.swp
+
+# Generated outputs
+output/
+*.tmp
