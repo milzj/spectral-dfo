@@ -45,5 +45,5 @@ scipy==1.17.1
     #   spectral-dfo (pyproject.toml)
 six==1.17.0
     # via python-dateutil
-spectraldesign @ https://zenodo.org/records/20193098/files/milzj/spectraldesign-v2.zip?download=1
+spectraldesign @ https://zenodo.org/records/20347229/files/milzj/spectraldesign-v3.zip?download=1
     # via spectral-dfo (pyproject.toml)

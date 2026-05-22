@@ -31,7 +31,7 @@ dependencies = [
     "matplotlib>=3.7",
     "pandas>=2.0",
     "pdfo>=2.2,<3",
-    "spectraldesign @ https://zenodo.org/records/20193098/files/milzj/spectraldesign-v2.zip?download=1",
+    "spectraldesign @ https://zenodo.org/records/20347229/files/milzj/spectraldesign-v3.zip?download=1",
 ]
 
 [project.optional-dependencies]

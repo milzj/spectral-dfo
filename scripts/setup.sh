@@ -30,7 +30,6 @@ VENV_PYTHON="$VENV_PATH/bin/python"
 echo "[setup] venv activated; Python is $($VENV_PYTHON -c 'import sys; print(sys.executable)')"
 
 BENDFO_REPO="https://github.com/POptUS/BenDFO.git"
-SPECTRALDESIGN_URL="https://zenodo.org/records/20193098/files/milzj/spectraldesign-v2.zip?download=1"
 
 # 1. Clone BenDFO (always — Python files are not pip-installable).
 if [[ ! -d scripts/BenDFO ]]; then
@@ -45,7 +44,6 @@ COMMITS_FILE="$ROOT/scripts/COMMITS.txt"
 {
     echo "# Cloned external dependencies — pinned at:"
     echo "BenDFO         $(git -C scripts/BenDFO rev-parse HEAD)"
-    echo "spectraldesign   $SPECTRALDESIGN_URL"
     echo "# Generated $(date -u +%FT%TZ)"
 } > "$COMMITS_FILE"
 echo "[setup] Wrote $COMMITS_FILE"
