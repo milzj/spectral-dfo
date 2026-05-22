@@ -1,0 +1,24 @@
+{
+    "creators": [
+        {
+            "name": "Kleywegt, Anton",
+            "affiliation": "H. Milton Stewart School of Industrial and Systems Engineering, Georgia Institute of Technology"
+        },
+        {
+            "name": "Milz, Johannes",
+            "affiliation": "H. Milton Stewart School of Industrial and Systems Engineering, Georgia Institute of Technology"
+        },
+        {
+            "name": "Singh, Mohit",
+            "affiliation": "H. Milton Stewart School of Industrial and Systems Engineering, Georgia Institute of Technology"
+        },
+        {
+            "name": "Xie, Weijun",
+            "affiliation": "H. Milton Stewart School of Industrial and Systems Engineering, Georgia Institute of Technology"
+        }
+    ],
+    "title": "SpectralDesign: A Python Package for Computing Spectral Designs",
+    "access_right": "open",
+    "license": "gpl-2.0-only",
+    "upload_type": "software"
+}

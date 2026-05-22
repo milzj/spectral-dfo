@@ -43,6 +43,10 @@ cd spectral-dfo
 # and writes scripts/COMMITS.txt with the pinned external SHAs.
 bash scripts/setup.sh
 
+# Activate the venv created by setup.sh in your current shell
+# (bash scripts/setup.sh runs in a subshell, so the activation does not persist).
+source .venv/bin/activate
+
 # 30-second sanity check: 5 problems, 1 sigma, 3 seeds.
 bash scripts/run_quick_smoke.sh
 
